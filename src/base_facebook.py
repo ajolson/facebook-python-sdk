@@ -1,5 +1,5 @@
 from abc import ABCMeta, abstractmethod
-from base64 import urlsafe_b64decode, urlsafe_b64encode
+from base64 import urlsafe_b64decode
 import json
 import hashlib
 import urllib
@@ -258,10 +258,10 @@ class BaseFacebook(object):
 		self.establish_csrf_token_state()
 		current_url = self.get_current_url()
 
-		# if 'scope' is passed as an array, convert to comma separated list
+		# if 'scope' is passed as a list, convert to comma separated list
 		scope_params = getattr(params, 'scope', None)
-		if scope_params and isinstance(scope_params, dict):
-			params['scope'] = scope_params.join(',')
+		if scope_params and isinstance(scope_params, list):
+			params['scope'] = ','.join(scope_params)
 
 		final_params = {
 			'client_id' 	: self.get_app_id(),
@@ -478,7 +478,7 @@ class BaseFacebook(object):
 			method = 'GET'
 		params['method'] = method # method override, as we always do a POST
 
-		result = json.loads(self._oatuh_request(
+		result = json.loads(self._oauth_request(
 			self.get_url('graph', path),
 			params
 		))
@@ -645,7 +645,7 @@ class BaseFacebook(object):
 		if not params: params = {}
 		url = BaseFacebook.DOMAIN_MAP[name]
 		if path:
-			if path.find('/') == 0: path = path.replace('/','',1)
+			if path.find('/'): path = path.replace('/','',1)
 			url += path
 
 		if params:
@@ -664,7 +664,7 @@ class BaseFacebook(object):
 		query = ''
 		for key,value in all_params:
 			if self.should_retain_param(key):
-				retained_params[key] = param
+				retained_params[key] = value
 
 		if retained_params:
 			query = urllib.urlencode(retained_params)
