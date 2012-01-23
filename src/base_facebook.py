@@ -2,6 +2,7 @@ from abc import ABCMeta, abstractmethod
 from base64 import urlsafe_b64decode, urlsafe_b64encode
 import json
 import hashlib
+import urllib
 from uuid import uuid4
 from urlparse import parse_qs
 
@@ -496,7 +497,38 @@ class BaseFacebook(object):
 	# @return string The decoded response object
 	# @throws FacebookApiException
 
+	def _oauth_request(self, url, params):
+		if 'access_token' not in params:
+			params['access_token'] = self.get_access_token()
 
+		for key,value in params:
+			if not isinstance(value, str):
+				params[key] = json.dumps(value)
+
+		return self.make_request(url, params)
+
+
+	# Makes an HTTP request. This method can be overridden by subclasses if
+	# developers want to do fancier things or use something other than curl to
+	# make the request.
+	#
+	# @param string $url The URL to make the request to
+	# @param array $params The parameters to use for the POST body
+	# @param CurlHandler $ch Initialized curl handle
+	#
+	# @return string The response text
+
+	# TODO: test test test this, and make sure we have parity with php curl
+	def make_request(self, url, params):
+		post_data = None if params is None else urllib.urlencode(params)
+		file = urllib.urlopen(url, post_data)
+		try:
+			response = json.loads(file.read())
+		finally:
+			file.close()
+		if response.get("error"):
+			raise FacebookApiError(response)
+		return response
 
 
 
