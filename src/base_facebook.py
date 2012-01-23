@@ -559,6 +559,152 @@ class BaseFacebook(object):
 
 
 
+	# Build the URL for api given parameters.
+	#
+	# @param $method String the method name.
+	# @return string The URL for the given parameters
+	def get_api_url(self, method):
+		READ_ONLY_CALLS = [
+				'admin.getallocation',
+				'admin.getappproperties'
+				'admin.getbannedusers',
+				'admin.getlivestreamvialink',
+				'admin.getmetrics',
+				'admin.getrestrictioninfo',
+				'application.getpublicinfo',
+				'auth.getapppublickey',
+				'auth.getsession',
+				'auth.getsignedpublicsessiondata',
+				'comments.get',
+				'connect.getunconnectedfriendscount',
+				'dashboard.getactivity',
+				'dashboard.getcount',
+				'dashboard.getglobalnews',
+				'dashboard.getnews',
+				'dashboard.multigetcount',
+				'dashboard.multigetnews',
+				'data.getcookies',
+				'events.get',
+				'events.getmembers',
+				'fbml.getcustomtags',
+				'feed.getappfriendstories',
+				'feed.getregisteredtemplatebundlebyid',
+				'feed.getregisteredtemplatebundles',
+				'fql.multiquery',
+				'fql.query',
+				'friends.arefriends',
+				'friends.get',
+				'friends.getappusers',
+				'friends.getlists',
+				'friends.getmutualfriends',
+				'gifts.get',
+				'groups.get',
+				'groups.getmembers',
+				'intl.gettranslations',
+				'links.get',
+				'notes.get',
+				'notifications.get',
+				'pages.getinfo',
+				'pages.isadmin',
+				'pages.isappadded',
+				'pages.isfan',
+				'permissions.checkavailableapiaccess',
+				'permissions.checkgrantedapiaccess',
+				'photos.get',
+				'photos.getalbums',
+				'photos.gettags',
+				'profile.getinfo',
+				'profile.getinfooptions',
+				'stream.get',
+				'stream.getcomments',
+				'stream.getfilters',
+				'users.getinfo',
+				'users.getloggedinuser',
+				'users.getstandardinfo',
+				'users.hasapppermission',
+				'users.isappuser',
+				'users.isverified',
+				'video.getuploadlimits']
+		name = 'api'
+		if method.lower() in READ_ONLY_CALLS:
+			name = 'api_read'
+		elif method.lower() == 'video_upload':
+			name = 'api_video'
+		return self.get_url(name, 'restserver.php')
+
+
+
+	# Build the URL for given domain alias, path and parameters.
+	#
+	# @param $name string The name of the domain
+	# @param $path string Optional path (without a leading slash)
+	# @param $params array Optional query parameters
+	#
+	# @return string The URL for the given parameters
+	def get_url(self, name, path='', params=None):
+		if not params: params = {}
+		url = BaseFacebook.DOMAIN_MAP[name]
+		if path:
+			if path.find('/') == 0: path = path.replace('/','',1)
+			url += path
+
+		if params:
+			url = "%s?%s" % (url, urllib.urlencode(params))
+
+		return url
+
+
+	# Returns the Current URL, stripping it of known FB parameters that should
+	# not persist.
+	# This is now django-specific
+	def get_current_url(self):
+		protocol = 'http%s://' % ('s' if self.request.is_secure() else '')
+		all_params = self.request.REQUEST
+		retained_params = {}
+		query = ''
+		for key,value in all_params:
+			if self.should_retain_param(key):
+				retained_params[key] = param
+
+		if retained_params:
+			query = urllib.urlencode(retained_params)
+
+		return "%s%s%s?%s" % (protocol, self.request.get_host(), self.request.path, query)
+
+
+	def should_retain_param(self, param_name):
+		return param_name not in BaseFacebook.DROP_QUERY_PARAMS
+
+
+	# Analyzes the supplied result to see if it was thrown
+	# because the access token is no longer valid.  If that is
+	# the case, then the persistent store is cleared.
+	#
+	# @param $result array A record storing the error message returned
+	#                      by a failed API call.
+	def raise_api_exception(self, result):
+		e = FacebookApiError(result)
+		type = e.get_type()
+		if type == 'OAuthException' or \
+			type == 'invalid_token' or \
+			type == 'Exception':
+			message = e.get_message()
+			if 'Error validating access token' in message or 'Invalid OAuth access token' in message:
+				self.set_access_token(None)
+				self.user = 0
+				self.clear_all_persistent_data()
+		raise e
+
+
+
+	# Destroy the current session
+	def destroy_session(self):
+		self.access_token = None
+		self.signed_request = None
+		self.user = None
+		self.clear_all_persistent_data()
+
+
 	# Abstract methods to be implemented by subclasses
 
 	@abstractmethod

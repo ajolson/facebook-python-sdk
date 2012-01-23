@@ -13,7 +13,7 @@ class FacebookApiError(Exception):
 
 		super(FacebookApiError, self).__init__()
 
-	def get_value(self):
+	def get_message(self):
 		msg = ''
 		if 'error_description' in self.api_result:
 			msg = getattr(self.api_result, 'error_description')
@@ -24,6 +24,18 @@ class FacebookApiError(Exception):
 		else:
 			msg = 'Unknown Error. Check getResult()'
 		return msg
+
+	def get_type(self):
+		if 'error' in self.api_result:
+			error = self.api_result['error']
+			if isinstance(error, str):
+				return error
+			elif isinstance(error, dict):
+				if 'type' in error:
+					return error['type']
+
+		return 'Exception'
+
 
 	def __str__(self):
 		if int(self.error_code):
