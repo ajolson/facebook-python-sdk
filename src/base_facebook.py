@@ -21,13 +21,6 @@ class BaseFacebook(object):
 
 	VERSION = "3.1.1" # follows the official php version mirrored
 
-	# Default options for curl.
-	CURL_OPTS = {
-		'CURLOPT_CONNECTTIMEOUT' : 10,
-		'CURLOPT_RETURNTRANSFER' : True,
-		'CURLOPT_TIMEOUT'        : 60,
-		'CURLOPT_USERAGENT'      : 'facebook-python-3.1'
-	}
 	# List of query parameters that get automatically dropped when rebuilding
 	# the current URL.
 	DROP_QUERY_PARAMS = [
