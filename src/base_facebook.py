@@ -97,6 +97,19 @@ class BaseFacebook(object):
 		self.access_token = access_token
 		return self
 
+	def set_request_params(self, request_param_dict):
+		self.request = request_param_dict
+		return self
+
+	def get_request(self):
+		return self.request
+
+	def set_cookies(self, cookie_param_dict):
+		self.cookies = cookie_param_dict
+		return self
+
+	def get_cookies(self):
+		return self.cookies
 
 
 	# Initialize a Facebook Application.
@@ -105,7 +118,10 @@ class BaseFacebook(object):
 	# - secret: the application secret
 	# - file_upload: (optional) boolean indicating if file uploads are enabled
 	# @param dictionary config The application configuration
-	def __init__(self, config):
+	# @param dictionary request The request information associated with the current request
+	# - request_params: a dict of the GET and POST parameters in the request
+	# - cookie_params: a dict of the cookies available 
+	def __init__(self, config, request=None):
 		self.set_app_id(config['app_id'])
 		self.set_app_secret(config['secret'])
 		if 'file_upload' in config:
@@ -115,7 +131,11 @@ class BaseFacebook(object):
 		if state is not None:
 			self.state = state
 
-
+		if request:
+			if 'request_params' in request:
+				self.set_request_params(request['request_params'])
+			if 'cookie_params' in request:
+				self.set_cookies(request['cookie_params'])
 
 
 	# Determines and returns the user access token, first using
