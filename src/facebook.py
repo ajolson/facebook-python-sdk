@@ -7,6 +7,11 @@ class Facebook(BaseFacebook):
 
 	# our constructor here takes an optional member of request: session
 	# which we will modify and save.  this makes it django-specific, but that's cool
+	# @param dictionary request The request information associated with the current request
+	# - request_params: a dict of the GET and POST parameters in the request
+	# - cookie_params: a dict of the cookies available
+	# - session: a django SessionStore object. (django.contrib.sessions.backends.db.SessionStore)
+
 	def __init__(self, config, request=None, django_request=None):
 		self.session = request.get('session', None)
 		super(Facebook, self).__init__(config, request, django_request)

@@ -114,11 +114,10 @@ class BaseFacebook(object):
 
 
 	# Initialize a Facebook Application.
-	# The configuration:
+	# @param dictionary config The application configuration
 	# - app_id: the application ID
 	# - secret: the application secret
 	# - file_upload: (optional) boolean indicating if file uploads are enabled
-	# @param dictionary config The application configuration
 	# @param dictionary request The request information associated with the current request
 	# - request_params: a dict of the GET and POST parameters in the request
 	# - cookie_params: a dict of the cookies available 
