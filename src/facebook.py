@@ -10,7 +10,7 @@ class Facebook(BaseFacebook):
 	# @param dictionary request The request information associated with the current request
 	# - request_params: a dict of the GET and POST parameters in the request
 	# - cookie_params: a dict of the cookies available
-	# - session: a django session object.
+	# - session: a django SessionStore object. (django.contrib.sessions.backends.db.SessionStore)
 
 	def __init__(self, config, request=None):
 		self.session = request.session
