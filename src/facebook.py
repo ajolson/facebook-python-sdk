@@ -4,17 +4,13 @@ class Facebook(BaseFacebook):
 
 	k_supported_keys = ['state', 'code', 'access_token', 'user_id']
 
-
-	# our constructor here takes an optional member of request: session
+	# our config here takes an optional member of request: session
 	# which we will modify and save.  this makes it django-specific, but that's cool
-	# @param dictionary request The request information associated with the current request
-	# - request_params: a dict of the GET and POST parameters in the request
-	# - cookie_params: a dict of the cookies available
-	# - session: a django SessionStore object. (django.contrib.sessions.backends.db.SessionStore)
+	# @param Django Request request The django request object associated with the current request
 
-	def __init__(self, config, request=None, django_request=None):
-		self.session = request.get('session', None)
-		super(Facebook, self).__init__(config, request, django_request)
+	def __init__(self, config, request=None):
+		self.session = request.session
+		super(Facebook, self).__init__(config, request)
 
 	def is_supported_key(self, key):
 		return key in self.k_supported_keys

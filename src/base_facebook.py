@@ -118,10 +118,8 @@ class BaseFacebook(object):
 	# - app_id: the application ID
 	# - secret: the application secret
 	# - file_upload: (optional) boolean indicating if file uploads are enabled
-	# @param dictionary request The request information associated with the current request
-	# - request_params: a dict of the GET and POST parameters in the request
-	# - cookie_params: a dict of the cookies available 
-	def __init__(self, config, request=None, django_request=None):
+	# @param Django Request request The django request object for the current request
+	def __init__(self, config, django_request=None):
 		self.set_app_id(config['app_id'])
 		self.set_app_secret(config['secret'])
 		if 'file_upload' in config:
@@ -131,14 +129,14 @@ class BaseFacebook(object):
 		if state is not None:
 			self.state = state
 
-		if request:
-			if 'request_params' in request:
-				self.set_request_params(request['request_params'])
-			if 'cookie_params' in request:
-				self.set_cookies(request['cookie_params'])
-
 		if django_request:
+			request_params = {}
+			request_params.update(django_request.POST)
+			request_params.update(django_request.GET)
+			# set the django request object, the request params, and cookies
 			self.django_request = django_request
+			self.set_request_params(request_params)
+			self.set_cookies(django_request.cookies)
 
 	# Determines and returns the user access token, first using
 	# the signed request if present, and then falling back on
@@ -154,7 +152,6 @@ class BaseFacebook(object):
 		# if there is a signed request, then it alone determines
 		# the access token.
 		signed_request = self.get_signed_request()
-		print signed_request
 		if signed_request:
 			# apps.facebook.com hands the access_token in the signed_request
 			if 'oauth_token' in signed_request:
