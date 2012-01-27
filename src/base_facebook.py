@@ -1,7 +1,8 @@
 from abc import ABCMeta, abstractmethod
-from base64 import urlsafe_b64decode
+from base64 import urlsafe_b64decode, b64decode
 import json
 import hashlib
+import hmac
 import urllib
 from uuid import uuid4
 from urlparse import parse_qs
@@ -121,7 +122,7 @@ class BaseFacebook(object):
 	# @param dictionary request The request information associated with the current request
 	# - request_params: a dict of the GET and POST parameters in the request
 	# - cookie_params: a dict of the cookies available 
-	def __init__(self, config, request=None):
+	def __init__(self, config, request=None, django_request=None):
 		self.set_app_id(config['app_id'])
 		self.set_app_secret(config['secret'])
 		if 'file_upload' in config:
@@ -137,6 +138,8 @@ class BaseFacebook(object):
 			if 'cookie_params' in request:
 				self.set_cookies(request['cookie_params'])
 
+		if django_request:
+			self.django_request = django_request
 
 	# Determines and returns the user access token, first using
 	# the signed request if present, and then falling back on
@@ -152,6 +155,7 @@ class BaseFacebook(object):
 		# if there is a signed request, then it alone determines
 		# the access token.
 		signed_request = self.get_signed_request()
+		print signed_request
 		if signed_request:
 			# apps.facebook.com hands the access_token in the signed_request
 			if 'oauth_token' in signed_request:
@@ -171,7 +175,7 @@ class BaseFacebook(object):
 			# stored should be cleared.
 			self.clear_all_persistent_data()
 			# respect the signed request's data, even
-			#// if there's an authorization code or something else
+			# if there's an authorization code or something else
 			return False
 
 		code = self.get_code()
@@ -202,10 +206,11 @@ class BaseFacebook(object):
 		# TODO: we're gonna have to get access to cookies and requests here
 #		raise Exception('not yet implemented!')
 		if not self.signed_request:
-			if getattr(self.request, 'signed_request', None):
-				self.signed_request = self.parse_signed_request(getattr(self.request, 'signed_request', None))
-			elif getattr(self.cookies, self.get_signed_request_cookie_name(), None):
-				self.signed_request = self.parse_signed_request(getattr(self.cookies, self.get_signed_request_cookie_name()))
+			if 'signed_request' in self.request:
+				self.signed_request = self.parse_signed_request(self.request.get('signed_request', None))
+			elif self.get_signed_request_cookie_name() in self.cookies:
+				self.signed_request = self.parse_signed_request(self.cookies.get(self.get_signed_request_cookie_name()))
+
 		return self.signed_request
 
 
@@ -272,7 +277,7 @@ class BaseFacebook(object):
 		current_url = self.get_current_url()
 
 		# if 'scope' is passed as a list, convert to comma separated list
-		scope_params = getattr(params, 'scope', None)
+		scope_params = params.get('scope', None)
 		if scope_params and isinstance(scope_params, list):
 			params['scope'] = ','.join(scope_params)
 
@@ -419,22 +424,22 @@ class BaseFacebook(object):
 	# @return mixed An access token exchanged for the authorization code, or
 	#               false if an access token could not be generated.
 	def get_access_token_from_code(self, code, redirect_uri=None):
-		if not code:
+		if code is None:
 			return False
 		if redirect_uri is None:
 			redirect_uri = self.get_current_url()
 
 		try:
-			# need to circumvent json_decode by calling _oauthRequest
+			# need to circumvent json_decode by calling _oauth_request
 			# directly, since response isn't JSON format.
 			access_token_response = self._oauth_request(
 				self.get_url('graph', '/oauth/access_token'),
-				params = {
-					'client_id' 	: self.get_app_id(),
-					'client_secret' : self.get_app_secret(),
-					'redirect_uri'	: redirect_uri,
-					'code' 			: code
-				}
+					params = {
+						'client_id' 	: self.get_app_id(),
+						'client_secret' : self.get_app_secret(),
+						'redirect_uri'	: redirect_uri,
+						'code' 			: code
+					}
 			)
 		except FacebookApiError:
 			# most likely that user very recently revoked authorization.
@@ -443,11 +448,12 @@ class BaseFacebook(object):
 		if access_token_response is None:
 			return False
 
+		# note that parse_qs returns values in lists, which we don't want.
 		response_params = parse_qs(access_token_response)
 		if 'access_token' not in response_params:
 			return False
 
-		return response_params['access_token']
+		return response_params['access_token'][0]
 
 
 
@@ -514,8 +520,8 @@ class BaseFacebook(object):
 		if 'access_token' not in params:
 			params['access_token'] = self.get_access_token()
 
-		for key,value in params:
-			if not isinstance(value, str):
+		for key,value in params.items():
+			if not isinstance(value, str) and not isinstance(value, unicode):
 				params[key] = json.dumps(value)
 
 		return self.make_request(url, params)
@@ -534,12 +540,14 @@ class BaseFacebook(object):
 	# TODO: test test test this, and make sure we have parity with php curl
 	def make_request(self, url, params):
 		post_data = None if params is None else urllib.urlencode(params)
+
 		file = urllib.urlopen(url, post_data)
+
 		try:
-			response = json.loads(file.read())
+			response = file.read()
 		finally:
 			file.close()
-		if response.get("error"):
+		if 'error' in response:
 			raise FacebookApiError(response)
 		return response
 
@@ -552,19 +560,23 @@ class BaseFacebook(object):
 
 	def parse_signed_request(self, signed_request):
 		encoded_sig, payload = signed_request.split('.', 2)
-		sig = urlsafe_b64decode(encoded_sig)
-		data = json.loads(urlsafe_b64decode(payload))
+		padded_encoded_sig = encoded_sig + '=' * (4 - len(encoded_sig) % 4)
+		padded_payload = payload + '=' * (4 - len(payload) % 4)
+
+		sig = urlsafe_b64decode(padded_encoded_sig)
+		data = json.loads(urlsafe_b64decode(padded_payload))
 
 		if data['algorithm'].upper() != "HMAC-SHA256":
 			# TODO: log error
+			print "algorithm is not HMAC!!"
 			return None
 
-		hash = hashlib.sha256()
-		hash.update(payload + self.get_app_secret())
+		hash = hmac.new(self.get_app_secret(), payload, hashlib.sha256)
 		expected_sig = hash.digest()
 
 		if sig != expected_sig:
 			# TODO: log failure
+			print "sig does not equal expected sig!!"
 			return None
 
 		return data
@@ -651,7 +663,7 @@ class BaseFacebook(object):
 	#
 	# @param $name string The name of the domain
 	# @param $path string Optional path (without a leading slash)
-	# @param $params array Optional query parameters
+	# @param $params dict Optional query parameters
 	#
 	# @return string The URL for the given parameters
 	def get_url(self, name, path='', params=None):
@@ -671,18 +683,18 @@ class BaseFacebook(object):
 	# not persist.
 	# This is now django-specific
 	def get_current_url(self):
-		protocol = 'http%s://' % ('s' if self.request.is_secure() else '')
-		all_params = self.request.REQUEST
+		protocol = 'http%s://' % ('s' if self.django_request.is_secure() else '')
+		all_params = self.request
 		retained_params = {}
 		query = ''
-		for key,value in all_params:
+		for key,value in all_params.items():
 			if self.should_retain_param(key):
 				retained_params[key] = value
 
 		if retained_params:
 			query = urllib.urlencode(retained_params)
 
-		return "%s%s%s?%s" % (protocol, self.request.get_host(), self.request.path, query)
+		return "%s%s%s%s" % (protocol, self.django_request.get_host(), self.django_request.path, ('?'+query if query else ''))
 
 
 	def should_retain_param(self, param_name):

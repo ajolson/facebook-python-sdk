@@ -7,9 +7,9 @@ class Facebook(BaseFacebook):
 
 	# our constructor here takes an optional member of request: session
 	# which we will modify and save.  this makes it django-specific, but that's cool
-	def __init__(self, config, request=None):
-		self.session = request.session
-		super(Facebook, self).__init__(config, request)
+	def __init__(self, config, request=None, django_request=None):
+		self.session = request.get('session', None)
+		super(Facebook, self).__init__(config, request, django_request)
 
 	def is_supported_key(self, key):
 		return key in self.k_supported_keys
