@@ -86,7 +86,20 @@ class BaseFacebook(object):
 	# calls return whatever the first call returned.
 	# @return string The access token
 	def get_access_token(self):
+		if self.access_token is not None:
+			return self.access_token
+
+		# first establish access token to be the application
+		# access token, in case we navigate to the /oauth/access_token
+		# endpoint, where SOME access token is required.
+		self.set_access_token(self.get_application_access_token())
+		user_access_token = self.get_user_access_token()
+		if user_access_token:
+			self.set_access_token(user_access_token)
+
 		return self.access_token
+
+
 
 	# Sets the access token for api calls.  Use this if you get
 	# your access token by other means and just want the SDK
@@ -136,7 +149,7 @@ class BaseFacebook(object):
 			# set the django request object, the request params, and cookies
 			self.django_request = django_request
 			self.set_request_params(request_params)
-			self.set_cookies(django_request.cookies)
+			self.set_cookies(django_request.COOKIES)
 
 	# Determines and returns the user access token, first using
 	# the signed request if present, and then falling back on
@@ -235,7 +248,7 @@ class BaseFacebook(object):
 		signed_request = self.get_signed_request()
 		if signed_request:
 			if 'user_id' in signed_request:
-				user_id = signed_request['user']
+				user_id = signed_request['user_id']
 				self.set_persistent_data('user_id', user_id)
 				return user_id
 			# if the signed request didn't present a user id, then invalidate
